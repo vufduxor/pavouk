@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ESP32 – teplota a vlhkost</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A1%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<meta name="theme-color" content="#2f6fed">
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--tx:#1c1f24;--mu:#6b7280;--bd:#e3e6ea;--ok:#1a9d55;--bad:#d93a3a;--ac:#2f6fed;--ac2:#e08a1e}
 @media (prefers-color-scheme:dark){:root{--bg:#14171b;--card:#1d2127;--tx:#e8eaed;--mu:#9aa3ad;--bd:#2c323a;--ok:#3ccf7f;--bad:#ff6b6b;--ac:#6c9cff;--ac2:#f0a64a}}
@@ -81,7 +83,7 @@ details summary{cursor:pointer;color:var(--mu)}
         <label>Uživatel (volitelně)<input id="usr" autocomplete="off"></label>
         <label>Heslo (volitelně)<input id="pwd" type="password" autocomplete="off"></label>
       </form>
-      <div style="margin-top:12px"><button id="go">Připojit</button></div>
+      <div class="row" style="margin-top:12px;justify-content:flex-start"><button id="go">Připojit</button><button id="link" type="button" style="background:var(--mu)">Kopírovat odkaz s ID</button><span id="lmsg" class="lbl"></span></div>
     </details>
   </div>
 </div>
@@ -98,6 +100,8 @@ function store(k, v) {
 $('broker').value = store('broker') || 'wss://broker.hivemq.com:8884/mqtt';
 $('dev').value = store('dev');
 $('usr').value = store('usr');
+const qp = new URLSearchParams(location.hash.slice(1) || location.search.slice(1));
+if (qp.get('id')) $('dev').value = qp.get('id');
 
 function badge(el, text, cls) { el.className = 'badge ' + cls; el.innerHTML = '<span class="dot"></span>' + text; }
 function setEsp(on) { badge($('esp'), 'ESP32: ' + (on ? 'online' : 'offline'), on ? 'on' : 'bad'); }
@@ -146,6 +150,9 @@ function onSettings(s) {
 function connect() {
   const id = $('dev').value.trim();
   if (!id) { setConn('Zadej ID zařízení', false); return; }
+  if (location.protocol === 'https:' && $('broker').value.trim().startsWith('ws://')) {
+    setConn('Na HTTPS použij wss:// broker', false); return;
+  }
   ['broker', 'dev', 'usr'].forEach(k => store(k, $(k).value));
   if (client) client.end(true);
   base = id + '/'; hist = [];
@@ -172,6 +179,13 @@ function connect() {
 }
 
 $('go').onclick = connect;
+$('link').onclick = async () => {
+  const id = $('dev').value.trim();
+  if (!id) { $('lmsg').textContent = 'Nejdřív zadej ID.'; return; }
+  const url = location.origin + location.pathname + '#id=' + encodeURIComponent(id);
+  try { await navigator.clipboard.writeText(url); $('lmsg').textContent = 'Zkopírováno ✓'; }
+  catch (e) { $('lmsg').textContent = url; }
+};
 $('save').onclick = () => {
   if (!client || !client.connected) { msg('Nejdřív se připoj k brokeru.'); return; }
   const ti = Number($('int').value);
